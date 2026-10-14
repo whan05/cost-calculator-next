@@ -1,29 +1,52 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-/**
- * Supabase client para el navegador usando @supabase/ssr
- * Sincroniza cookies automáticamente con el servidor
- */
-export function createBrowserSupabaseClient() {
+type BrowserSupabaseClient = ReturnType<typeof createBrowserClient>;
+
+declare global {
+  interface Window {
+    __supabaseBrowserClient?: BrowserSupabaseClient;
+  }
+}
+
+let browserClient: BrowserSupabaseClient | null = null;
+
+function instantiateBrowserClient(): BrowserSupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "placeholder-anon-key";
 
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
-// Instancia singleton para reutilizar en componentes del cliente
-let browserClient: ReturnType<typeof createBrowserClient> | null = null;
-
-export function getBrowserSupabaseClient() {
+/**
+ * Singleton estricto para el navegador usando @supabase/ssr.
+ * Reutiliza una única instancia durante todo el ciclo de vida de la aplicación en el cliente,
+ * evitando la apertura repetida de canales de conexión WebSocket y re-autenticaciones fantasma.
+ */
+export function getBrowserSupabaseClient(): BrowserSupabaseClient {
   if (typeof window === "undefined") {
-    return createBrowserSupabaseClient();
+    return instantiateBrowserClient();
   }
+
+  if (window.__supabaseBrowserClient) {
+    return window.__supabaseBrowserClient;
+  }
+
   if (!browserClient) {
-    browserClient = createBrowserSupabaseClient();
+    browserClient = instantiateBrowserClient();
+    window.__supabaseBrowserClient = browserClient;
   }
+
   return browserClient;
+}
+
+/**
+ * Retorna la instancia singleton existente o la inicializa si no existe.
+ */
+export function createBrowserSupabaseClient(): BrowserSupabaseClient {
+  return getBrowserSupabaseClient();
 }
 
 export const supabaseBrowser = typeof window !== "undefined" 
   ? getBrowserSupabaseClient() 
-  : null as unknown as ReturnType<typeof createBrowserClient>;
+  : (null as unknown as BrowserSupabaseClient);
+

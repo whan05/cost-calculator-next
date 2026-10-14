@@ -14,6 +14,27 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
+  const pathname = request.nextUrl.pathname;
+
+  const isAuthRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password");
+
+  const isProtectedRoute =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/materials") ||
+    pathname.startsWith("/calculator") ||
+    pathname.startsWith("/calculations") ||
+    pathname.startsWith("/settings");
+
+  // Si no es ruta protegida ni de autenticación (ej. landing page, pings, probes),
+  // omitir la llamada de red a Supabase Auth para no saturar conexiones.
+  if (!isAuthRoute && !isProtectedRoute) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
@@ -35,21 +56,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
-
-  const isAuthRoute =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/register") ||
-    pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/reset-password");
-
-  const isProtectedRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/materials") ||
-    pathname.startsWith("/calculator") ||
-    pathname.startsWith("/calculations") ||
-    pathname.startsWith("/settings");
 
   // Redirigir a login si intenta entrar a ruta protegida sin sesión
   if (!user && isProtectedRoute) {
